@@ -5,9 +5,9 @@ import os
 import sqlite3
 import uuid
 
-app = Flask(__name__, static_folder="front-end/static", template_folder="front-end/templates")
+app = Flask(__name__, static_folder="back-end/static", template_folder="back-end/templates")
 app.config['SECRET_KEY'] = 'your_secret_key'
-app.config['SQLALCHEMY_DATABASE_URI'] = 'sqlite:///users.db'
+app.config['SQLALCHEMY_DATABASE_URI'] = 'sqlite:///back-end/users.db'
 UPLOAD_FOLDER = os.path.join(os.path.dirname(os.path.abspath(__file__)), 'uploads')
 os.makedirs(UPLOAD_FOLDER, exist_ok=True)
 
@@ -37,7 +37,7 @@ def moderate_text(text):
     return any(word in text for word in prohibited_words)
 
 def init_db():
-    conn = sqlite3.connect('comments.db')
+    conn = sqlite3.connect('back-end/comments.db')
     cursor = conn.cursor()
     cursor.execute('''
         CREATE TABLE IF NOT EXISTS comments (
@@ -112,7 +112,7 @@ def add_comment():
     else:
         media_url = None
 
-    conn = sqlite3.connect('comments.db')
+    conn = sqlite3.connect('back-end/comments.db')
     cursor = conn.cursor()
     cursor.execute('''
         INSERT INTO comments (id, username, text, media, likes, parent_id)
@@ -135,7 +135,7 @@ def add_comment():
 @app.route('/api/comments', methods=['GET'])
 @login_required
 def get_comments():
-    conn = sqlite3.connect('comments.db')
+    conn = sqlite3.connect('back-end/comments.db')
     cursor = conn.cursor()
     cursor.execute('SELECT id, username, text, media, likes, parent_id FROM comments')
     rows = cursor.fetchall()
@@ -168,7 +168,7 @@ def get_comments():
 @app.route('/api/comments/<comment_id>/like', methods=['POST'])
 @login_required
 def like_comment(comment_id):
-    conn = sqlite3.connect('comments.db')
+    conn = sqlite3.connect('back-end/comments.db')
     cursor = conn.cursor()
     cursor.execute('UPDATE comments SET likes = likes + 1 WHERE id = ?', (comment_id,))
     conn.commit()
@@ -180,7 +180,7 @@ def like_comment(comment_id):
 @app.route('/api/comments/<comment_id>', methods=['DELETE'])
 @login_required
 def delete_comment(comment_id):
-    conn = sqlite3.connect('comments.db')
+    conn = sqlite3.connect('back-end/comments.db')
     cursor = conn.cursor()
     cursor.execute('SELECT username FROM comments WHERE id = ?', (comment_id,))
     row = cursor.fetchone()
@@ -197,7 +197,7 @@ def delete_comment(comment_id):
 @login_required
 def edit_comment(comment_id):
     new_text = request.form['text']
-    conn = sqlite3.connect('comments.db')
+    conn = sqlite3.connect('back-end/comments.db')
     cursor = conn.cursor()
     cursor.execute('SELECT username FROM comments WHERE id = ?', (comment_id,))
     row = cursor.fetchone()
