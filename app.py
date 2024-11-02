@@ -5,7 +5,7 @@ import os
 import sqlite3
 import uuid
 
-app = Flask(__name__, static_folder="back-end/static", template_folder="back-end/templates")
+app = Flask(__name__, static_folder="front-end/static", template_folder="front-end/templates")
 app.config['SECRET_KEY'] = 'your_secret_key'
 app.config['SQLALCHEMY_DATABASE_URI'] = 'sqlite:///users.db'
 UPLOAD_FOLDER = os.path.join(os.path.dirname(os.path.abspath(__file__)), 'uploads')
@@ -52,9 +52,6 @@ def init_db():
     conn.commit()
     conn.close()
 
-# Inicializa la base de datos al iniciar la aplicación
-with app.app_context():
-    db.create_all()
 init_db()
 
 @app.route('/')
@@ -185,10 +182,33 @@ def like_comment(comment_id):
 def delete_comment(comment_id):
     conn = sqlite3.connect('comments.db')
     cursor = conn.cursor()
-    cursor.execute('DELETE FROM comments WHERE id = ?', (comment_id,))
-    conn.commit()
-    conn.close()
-    return jsonify({'success': True})
+    cursor.execute('SELECT username FROM comments WHERE id = ?', (comment_id,))
+    row = cursor.fetchone()
+    if row and row[0] == current_user.username:
+        cursor.execute('DELETE FROM comments WHERE id = ?', (comment_id,))
+        conn.commit()
+        conn.close()
+        return jsonify({'success': True})
+    else:
+        conn.close()
+        return jsonify({'success': False, 'error': 'No tienes permiso para eliminar este comentario.'}), 403
+
+@app.route('/api/comments/<comment_id>', methods=['PUT'])
+@login_required
+def edit_comment(comment_id):
+    new_text = request.form['text']
+    conn = sqlite3.connect('comments.db')
+    cursor = conn.cursor()
+    cursor.execute('SELECT username FROM comments WHERE id = ?', (comment_id,))
+    row = cursor.fetchone()
+    if row and row[0] == current_user.username:
+        cursor.execute('UPDATE comments SET text = ? WHERE id = ?', (new_text, comment_id))
+        conn.commit()
+        conn.close()
+        return jsonify({'success': True})
+    else:
+        conn.close()
+        return jsonify({'success': False, 'error': 'No tienes permiso para editar este comentario.'}), 403
 
 @app.route('/uploads/<filename>')
 def uploaded_file(filename):
