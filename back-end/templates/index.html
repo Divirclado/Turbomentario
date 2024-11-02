@@ -1,0 +1,38 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <title>Turbo Comments</title>
+    <link rel="stylesheet" href="{{ url_for('static', filename='styles.css') }}">
+    <link rel="icon" href="{{ url_for('static', filename='favicon.ico') }}" type="image/x-icon">
+</head>
+<body>
+    <div class="video-background">
+        <video autoplay loop muted>
+            <source src="{{ url_for('static', filename='background.mp4') }}" type="video/mp4">
+            Tu navegador no soporta el elemento de video.
+        </video>
+    </div>
+    <div class="container">
+        <header>
+            <img src="{{ url_for('static', filename='tu-gif.gif') }}" alt="Tu GIF" style="width: 600px; height: auto;">
+            <h1>Bienvenido, {{ username }}</h1>
+            <a href="{{ url_for('logout') }}">Cerrar Sesión</a>
+        </header>
+        <form id="comment-form">
+            <textarea id="comment" placeholder="Escribe tu comentario" required></textarea>
+            <input type="hidden" id="parent_id" value="">
+            <p>Escoge tu imagen o video</p>
+            <input type="file" id="media" accept="image/*,video/*" hidden>
+            <label for="media">Seleccionar archivo</label>
+            <div id="file-info">
+                <span id="file-name">Ningún archivo seleccionado</span>
+                <button type="button" id="discard-file" style="display: none;">Descartar</button>
+            </div>
+            <button type="submit">Enviar</button>
+        </form>
+        <div id="comments"></div>
+    </div>
+    <script src="{{ url_for('static', filename='scripts.js') }}"></script>
+</body>
+</html>
