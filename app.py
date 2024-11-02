@@ -67,11 +67,15 @@ def register():
     if request.method == 'POST':
         username = request.form['username']
         password = request.form['password']
-        new_user = User(username=username, password=password)
-        db.session.add(new_user)
-        db.session.commit()
-        login_user(new_user)
-        return redirect(url_for('index'))
+        try:
+            new_user = User(username=username, password=password)
+            db.session.add(new_user)
+            db.session.commit()
+            login_user(new_user)
+            return redirect(url_for('index'))
+        except Exception as e:
+            app.logger.error(f"Error durante el registro: {e}")
+            flash('Hubo un problema al registrarte. Inténtalo de nuevo más tarde.', 'danger')
     return render_template('register.html')
 
 @app.route('/login', methods=['GET', 'POST'])
