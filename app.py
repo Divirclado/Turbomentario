@@ -79,12 +79,16 @@ def login():
     if request.method == 'POST':
         username = request.form['username']
         password = request.form['password']
-        user = User.query.filter_by(username=username).first()
-        if user and user.password == password:
-            login_user(user)
-            return redirect(url_for('index'))
-        else:
-            flash('Inicio de sesión no exitoso. Por favor verifica tu nombre de usuario y contraseña.', 'danger')
+        try:
+            user = User.query.filter_by(username=username).first()
+            if user and user.password == password:
+                login_user(user)
+                return redirect(url_for('index'))
+            else:
+                flash('Inicio de sesión no exitoso. Por favor verifica tu nombre de usuario y contraseña.', 'danger')
+        except Exception as e:
+            app.logger.error(f"Error durante el inicio de sesión: {e}")
+            flash('Hubo un problema al iniciar sesión. Inténtalo de nuevo más tarde.', 'danger')
     return render_template('login.html')
 
 @app.route('/logout')
