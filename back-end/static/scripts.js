@@ -1,17 +1,17 @@
 document.addEventListener('DOMContentLoaded', function() {
     fetch('/api/comments')
-    .then(response => response.json())
-    .then(comments => {
-        comments.forEach(comment => {
-            displayComment(comment, false);
-            comment.replies.forEach(reply => {
-                displayComment(reply, true);
+        .then(response => response.json())
+        .then(comments => {
+            comments.forEach(comment => {
+                displayComment(comment, false);
+                comment.replies.forEach(reply => {
+                    displayComment(reply, true);
+                });
             });
+        })
+        .catch(error => {
+            console.error('Error al cargar los comentarios:', error);
         });
-    })
-    .catch(error => {
-        console.error('Error al cargar los comentarios:', error);
-    });
 });
 
 document.getElementById('comment-form').addEventListener('submit', function(event) {
@@ -35,7 +35,7 @@ document.getElementById('comment-form').addEventListener('submit', function(even
     .then(response => response.json())
     .then(data => {
         if (data.success) {
-            displayComment(data.comment);
+            displayComment(data.comment, !!parent_id); // Indicar si es respuesta
             resetFileInput();
             document.getElementById('parent_id').value = '';
         } else {
@@ -67,8 +67,22 @@ function resetFileInput() {
 
 function displayComment(comment, isReply = false) {
     const commentsDiv = isReply ? document.getElementById(`replies-${comment.parent_id}`) : document.getElementById('comments');
+    
+    // Crear el div de respuestas si no existe
+    if (isReply && !commentsDiv) {
+        const parentCommentDiv = document.querySelector(`.comment[data-id="${comment.parent_id}"]`);
+        const repliesDiv = document.createElement('div');
+        repliesDiv.id = `replies-${comment.parent_id}`;
+        repliesDiv.classList.add('replies');
+        parentCommentDiv.appendChild(repliesDiv);
+    }
+
     const commentDiv = document.createElement('div');
     commentDiv.classList.add('comment');
+    if (isReply) {
+        commentDiv.classList.add('reply');  // Agregar clase 'reply' si es una respuesta
+    }
+    commentDiv.setAttribute('data-id', comment.id);
     commentDiv.innerHTML = `
         <strong>${comment.username}</strong>
         <p id="comment-text-${comment.id}">${comment.text}</p>
