@@ -18,6 +18,12 @@ db = SQLAlchemy(app)
 login_manager = LoginManager()
 login_manager.init_app(app)
 
+def allowed_file(filename):
+    ALLOWED_EXTENSIONS = {'png', 'jpg', 'jpeg', 'gif', 'mp4', 'mov'}
+    return '.' in filename and filename.rsplit('.', 1)[1].lower() in ALLOWED_EXTENSIONS
+
+# Puedes incluir otras funciones auxiliares aquí, como moderate_text si no está definida aún.
+
 def moderate_text(text):
     # Esta función verifica si el texto contiene palabras inapropiadas
     # y devuelve True si las contiene, False de lo contrario.
@@ -204,40 +210,48 @@ def like_comment(comment_id):
     conn.close()
     return jsonify({'success': True, 'likes': likes})
 
-@app.route('/api/comments/<comment_id>', methods=['DELETE'])
+@@app.route('/api/comments/<comment_id>', methods=['DELETE'])
 @login_required
 def delete_comment(comment_id):
-    db_path = os.path.join(os.path.dirname(__file__), 'back-end/comments.db')
+    db_path = os.path.join(os.path.dirname(__file__), 'comments.db')
     conn = sqlite3.connect(db_path)
     cursor = conn.cursor()
-    cursor.execute('SELECT username FROM comments WHERE id = ?', (comment_id,))
-    row = cursor.fetchone()
-    if row and row[0] == current_user.username:
-        cursor.execute('DELETE FROM comments WHERE id = ?', (comment_id,))
-        conn.commit()
+    try:
+        cursor.execute('SELECT username FROM comments WHERE id = ?', (comment_id,))
+        row = cursor.fetchone()
+        if row and row[0] == current_user.username:
+            cursor.execute('DELETE FROM comments WHERE id = ?', (comment_id,))
+            conn.commit()
+            return jsonify({'success': True})
+        else:
+            return jsonify({'success': False, 'error': 'No tienes permiso para eliminar este comentario.'}), 403
+    except Exception as e:
+        app.logger.error(f"Error al eliminar comentario: {e}")
+        return jsonify({'success': False, 'error': 'Hubo un problema con el servidor. Por favor, inténtalo de nuevo más tarde.'}), 500
+    finally:
         conn.close()
-        return jsonify({'success': True})
-    else:
-        conn.close()
-        return jsonify({'success': False, 'error': 'No tienes permiso para eliminar este comentario.'}), 403
 
 @app.route('/api/comments/<comment_id>', methods=['PUT'])
 @login_required
 def edit_comment(comment_id):
     new_text = request.form['text']
-    db_path = os.path.join(os.path.dirname(__file__), 'back-end/comments.db')
+    db_path = os.path.join(os.path.dirname(__file__), 'comments.db')
     conn = sqlite3.connect(db_path)
     cursor = conn.cursor()
-    cursor.execute('SELECT username FROM comments WHERE id = ?', (comment_id,))
-    row = cursor.fetchone()
-    if row and row[0] == current_user.username:
-        cursor.execute('UPDATE comments SET text = ? WHERE id = ?', (new_text, comment_id))
-        conn.commit()
+    try:
+        cursor.execute('SELECT username FROM comments WHERE id = ?', (comment_id,))
+        row = cursor.fetchone()
+        if row and row[0] == current_user.username:
+            cursor.execute('UPDATE comments SET text = ? WHERE id = ?', (new_text, comment_id))
+            conn.commit()
+            return jsonify({'success': True})
+        else:
+            return jsonify({'success': False, 'error': 'No tienes permiso para editar este comentario.'}), 403
+    except Exception as e:
+        app.logger.error(f"Error al editar comentario: {e}")
+        return jsonify({'success': False, 'error': 'Hubo un problema con el servidor. Por favor, inténtalo de nuevo más tarde.'}), 500
+    finally:
         conn.close()
-        return jsonify({'success': True})
-    else:
-        conn.close()
-        return jsonify({'success': False, 'error': 'No tienes permiso para editar este comentario.'}), 403
 
 @app.route('/uploads/<filename>')
 def uploaded_file(filename):
