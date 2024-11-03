@@ -19,3 +19,5 @@ SQLAlchemy==2.0.36
 typing_extensions==4.12.2
 urllib3==2.2.3
 Werkzeug==3.1.1
+psycopg2-binary==2.9.10
+python-dotenv==1.0.1
