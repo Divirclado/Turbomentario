@@ -29,6 +29,26 @@ def load_user(user_id):
 def unauthorized():
     return redirect(url_for('login'))
 
+def init_db():
+    with app.app_context():
+        db.create_all()  # Crea todas las tablas definidas
+
+    db_path = os.path.join(os.path.dirname(__file__), 'back-end/comments.db')
+    conn = sqlite3.connect(db_path)
+    cursor = conn.cursor()
+    cursor.execute('''
+        CREATE TABLE IF NOT EXISTS comments (
+            id TEXT PRIMARY KEY,
+            username TEXT NOT NULL,
+            text TEXT NOT NULL,
+            media TEXT,
+            likes INTEGER DEFAULT 0,
+            parent_id TEXT
+        )
+    ''')
+    conn.commit()
+    conn.close()
+
 @app.route('/register', methods=['GET', 'POST'])
 def register():
     if request.method == 'POST':
