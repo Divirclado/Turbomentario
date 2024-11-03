@@ -6,11 +6,11 @@ import os
 import sqlite3
 import uuid
 
-load_dotenv()  # Cargar variables de entorno desde .env
+load_dotenv()
 
 app = Flask(__name__, static_folder="back-end/static", template_folder="back-end/templates")
 app.config['SECRET_KEY'] = os.getenv('SECRET_KEY')
-app.config['SQLALCHEMY_DATABASE_URI'] = f"sqlite:///{os.path.join(os.path.dirname(__file__), 'instance/users.db')}"
+app.config['SQLALCHEMY_DATABASE_URI'] = os.getenv('DATABASE_URL')
 UPLOAD_FOLDER = os.path.join(os.path.dirname(__file__), 'uploads')
 os.makedirs(UPLOAD_FOLDER, exist_ok=True)
 
@@ -22,35 +22,15 @@ def allowed_file(filename):
     ALLOWED_EXTENSIONS = {'png', 'jpg', 'jpeg', 'gif', 'mp4', 'mov'}
     return '.' in filename and filename.rsplit('.', 1)[1].lower() in ALLOWED_EXTENSIONS
 
-# Puedes incluir otras funciones auxiliares aquí, como moderate_text si no está definida aún.
-
 def moderate_text(text):
-    # Esta función verifica si el texto contiene palabras inapropiadas
-    # y devuelve True si las contiene, False de lo contrario.
-    inappropriate_words = ['funar', 'nojoda', 'verga']  # Lista de palabras inapropiadas
-    for word in inappropriate_words:
-        if word in text:
-            return True
+    # Implementar la función para moderar el contenido del texto
     return False
-
-class User(UserMixin, db.Model):
-    id = db.Column(db.Integer, primary_key=True)
-    username = db.Column(db.String(150), unique=True, nullable=False)
-    password = db.Column(db.String(150), nullable=False)
-
-@login_manager.user_loader
-def load_user(user_id):
-    return User.query.get(int(user_id))
-
-@login_manager.unauthorized_handler
-def unauthorized():
-    return redirect(url_for('login'))
 
 def init_db():
     with app.app_context():
-        db.create_all()  # Crea todas las tablas definidas en los modelos de SQLAlchemy
+        db.create_all()
 
-    db_path = os.path.join(os.path.dirname(__file__), 'comments.db')  # Asegúrate de que la ruta es correcta
+    db_path = os.path.join(os.path.dirname(__file__), 'comments.db')
     conn = sqlite3.connect(db_path)
     cursor = conn.cursor()
     cursor.execute('''
@@ -65,6 +45,19 @@ def init_db():
     ''')
     conn.commit()
     conn.close()
+
+class User(UserMixin, db.Model):
+    id = db.Column(db.Integer, primary_key=True)
+    username = db.Column(db.String(150), unique=True, nullable=False)
+    password = db.Column(db.String(150), nullable=False)
+
+@login_manager.user_loader
+def load_user(user_id):
+    return User.query.get(int(user_id))
+
+@login_manager.unauthorized_handler
+def unauthorized():
+    return redirect(url_for('login'))
 
 @app.route('/register', methods=['GET', 'POST'])
 def register():
@@ -133,7 +126,7 @@ def add_comment():
         else:
             media_url = None
 
-        db_path = os.path.join(os.path.dirname(__file__), 'comments.db')  # Asegúrate de que la ruta es correcta
+        db_path = os.path.join(os.path.dirname(__file__), 'comments.db')
         conn = sqlite3.connect(db_path)
         cursor = conn.cursor()
         cursor.execute('''
@@ -162,7 +155,7 @@ def add_comment():
 @login_required
 def get_comments():
     try:
-        db_path = os.path.join(os.path.dirname(__file__), 'comments.db')  # Asegúrate de que la ruta es correcta
+        db_path = os.path.join(os.path.dirname(__file__), 'comments.db')
         conn = sqlite3.connect(db_path)
         cursor = conn.cursor()
         cursor.execute('SELECT id, username, text, media, likes, parent_id FROM comments')
@@ -200,63 +193,67 @@ def get_comments():
 @app.route('/api/comments/<comment_id>/like', methods=['POST'])
 @login_required
 def like_comment(comment_id):
-    db_path = os.path.join(os.path.dirname(__file__), 'back-end/comments.db')
-    conn = sqlite3.connect(db_path)
-    cursor = conn.cursor()
-    cursor.execute('UPDATE comments SET likes = likes + 1 WHERE id = ?', (comment_id,))
-    conn.commit()
-    cursor.execute('SELECT likes FROM comments WHERE id = ?', (comment_id,))
-    likes = cursor.fetchone()[0]
-    conn.close()
-    return jsonify({'success': True, 'likes': likes})
+    try:
+        db_path = os.path.join(os.path.dirname(__file__), 'comments.db')
+        conn = sqlite3.connect(db_path)
+        cursor = conn.cursor()
+        cursor.execute('UPDATE comments SET likes = likes + 1 WHERE id = ?', (comment_id,))
+        conn.commit()
+        cursor.execute('SELECT likes FROM comments WHERE id = ?', (comment_id,))
+        likes = cursor.fetchone()[0]
+        conn.close()
+        return jsonify({'success': True, 'likes': likes})
+    except Exception as e:
+        app.logger.error(f"Error al dar like a comentario: {e}")
+        return jsonify({'success': False, 'error': 'Hubo un problema con el servidor. Por favor, inténtalo de nuevo más tarde.'}), 500
 
-@@app.route('/api/comments/<comment_id>', methods=['DELETE'])
+@app.route('/api/comments/<comment_id>', methods=['DELETE'])
 @login_required
 def delete_comment(comment_id):
-    db_path = os.path.join(os.path.dirname(__file__), 'comments.db')
-    conn = sqlite3.connect(db_path)
-    cursor = conn.cursor()
     try:
+        db_path = os.path.join(os.path.dirname(__file__), 'comments.db')
+        conn = sqlite3.connect(db_path)
+        cursor = conn.cursor()
         cursor.execute('SELECT username FROM comments WHERE id = ?', (comment_id,))
         row = cursor.fetchone()
         if row and row[0] == current_user.username:
             cursor.execute('DELETE FROM comments WHERE id = ?', (comment_id,))
             conn.commit()
+            conn.close()
             return jsonify({'success': True})
         else:
+            conn.close()
             return jsonify({'success': False, 'error': 'No tienes permiso para eliminar este comentario.'}), 403
     except Exception as e:
         app.logger.error(f"Error al eliminar comentario: {e}")
         return jsonify({'success': False, 'error': 'Hubo un problema con el servidor. Por favor, inténtalo de nuevo más tarde.'}), 500
-    finally:
-        conn.close()
 
 @app.route('/api/comments/<comment_id>', methods=['PUT'])
 @login_required
 def edit_comment(comment_id):
     new_text = request.form['text']
-    db_path = os.path.join(os.path.dirname(__file__), 'comments.db')
-    conn = sqlite3.connect(db_path)
-    cursor = conn.cursor()
     try:
+        db_path = os.path.join(os.path.dirname(__file__), 'comments.db')
+        conn = sqlite3.connect(db_path)
+        cursor = conn.cursor()
         cursor.execute('SELECT username FROM comments WHERE id = ?', (comment_id,))
         row = cursor.fetchone()
         if row and row[0] == current_user.username:
             cursor.execute('UPDATE comments SET text = ? WHERE id = ?', (new_text, comment_id))
             conn.commit()
+            conn.close()
             return jsonify({'success': True})
         else:
+            conn.close()
             return jsonify({'success': False, 'error': 'No tienes permiso para editar este comentario.'}), 403
     except Exception as e:
         app.logger.error(f"Error al editar comentario: {e}")
-        return jsonify({'success': False, 'error': 'Hubo un problema con el servidor. Por favor, inténtalo de nuevo más tarde.'}), 500
-    finally:
-        conn.close()
-
+        return jsonify({'success': False, 'error': 'Hubo un problema con el servidor. Por favor, inténtalo más tarde.'}), 500
+        
 @app.route('/uploads/<filename>')
 def uploaded_file(filename):
     return send_from_directory(UPLOAD_FOLDER, filename)
-
+    
 if __name__ == '__main__':
     with app.app_context():
         init_db()
