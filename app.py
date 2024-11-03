@@ -6,7 +6,7 @@ import sqlite3
 import uuid
 
 app = Flask(__name__, static_folder="back-end/static", template_folder="back-end/templates")
-app.config['SECRET_KEY'] = 'your_secret_key'
+app.config['SECRET_KEY'] = os.environ.get('SECRET_KEY', 'your_default_secret_key')
 db_path = os.path.join(os.path.dirname(__file__), 'back-end/users.db')
 app.config['SQLALCHEMY_DATABASE_URI'] = f'sqlite:///{db_path}'
 UPLOAD_FOLDER = os.path.join(os.path.dirname(__file__), 'uploads')
@@ -28,39 +28,6 @@ def load_user(user_id):
 @login_manager.unauthorized_handler
 def unauthorized():
     return redirect(url_for('login'))
-
-def allowed_file(filename):
-    ALLOWED_EXTENSIONS = {'png', 'jpg', 'jpeg', 'gif', 'mp4', 'mov'}
-    return '.' in filename and filename.rsplit('.', 1)[1].lower() in ALLOWED_EXTENSIONS
-
-def moderate_text(text):
-    prohibited_words = ['mala_palabra1', 'mala_palabra2']
-    return any(word in text for word in prohibited_words)
-
-def init_db():
-    with app.app_context():
-        db.create_all()  # Crea todas las tablas definidas
-
-    db_path = os.path.join(os.path.dirname(__file__), 'back-end/comments.db')
-    conn = sqlite3.connect(db_path)
-    cursor = conn.cursor()
-    cursor.execute('''
-        CREATE TABLE IF NOT EXISTS comments (
-            id TEXT PRIMARY KEY,
-            username TEXT NOT NULL,
-            text TEXT NOT NULL,
-            media TEXT,
-            likes INTEGER DEFAULT 0,
-            parent_id TEXT
-        )
-    ''')
-    conn.commit()
-    conn.close()
-
-@app.route('/')
-@login_required
-def index():
-    return render_template('index.html', username=current_user.username)
 
 @app.route('/register', methods=['GET', 'POST'])
 def register():
@@ -94,6 +61,11 @@ def login():
             app.logger.error(f"Error durante el inicio de sesión: {e}")
             flash('Hubo un problema al iniciar sesión. Inténtalo de nuevo más tarde.', 'danger')
     return render_template('login.html')
+
+@app.route('/')
+@login_required
+def index():
+    return render_template('index.html', username=current_user.username)
 
 @app.route('/logout')
 @login_required
@@ -191,7 +163,6 @@ def like_comment(comment_id):
     conn.close()
     return jsonify({'success': True, 'likes': likes})
 
-# Añadir Verificaciones de Permisos aquí
 @app.route('/api/comments/<comment_id>', methods=['DELETE'])
 @login_required
 def delete_comment(comment_id):
