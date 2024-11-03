@@ -18,6 +18,15 @@ db = SQLAlchemy(app)
 login_manager = LoginManager()
 login_manager.init_app(app)
 
+def moderate_text(text):
+    # Esta función verifica si el texto contiene palabras inapropiadas
+    # y devuelve True si las contiene, False de lo contrario.
+    inappropriate_words = ['funar', 'nojoda', 'verga']  # Lista de palabras inapropiadas
+    for word in inappropriate_words:
+        if word in text:
+            return True
+    return False
+
 class User(UserMixin, db.Model):
     id = db.Column(db.Integer, primary_key=True)
     username = db.Column(db.String(150), unique=True, nullable=False)
