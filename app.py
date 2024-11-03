@@ -1,14 +1,17 @@
 from flask import Flask, render_template, redirect, url_for, request, flash, jsonify, send_from_directory
 from flask_sqlalchemy import SQLAlchemy
 from flask_login import LoginManager, UserMixin, login_user, login_required, logout_user, current_user
+from dotenv import load_dotenv
 import os
 import sqlite3
 import uuid
 
+load_dotenv()  # Cargar variables de entorno desde .env
+
 app = Flask(__name__, static_folder="back-end/static", template_folder="back-end/templates")
-app.config['SECRET_KEY'] = 'your_secret_key'
-app.config['SQLALCHEMY_DATABASE_URI'] = 'sqlite:///users.db'
-UPLOAD_FOLDER = os.path.join(os.path.dirname(os.path.abspath(__file__)), 'uploads')
+app.config['SECRET_KEY'] = os.getenv('SECRET_KEY')
+app.config['SQLALCHEMY_DATABASE_URI'] = f"sqlite:///{os.path.join(os.path.dirname(__file__), 'instance/users.db')}"
+UPLOAD_FOLDER = os.path.join(os.path.dirname(__file__), 'uploads')
 os.makedirs(UPLOAD_FOLDER, exist_ok=True)
 
 db = SQLAlchemy(app)
@@ -28,16 +31,12 @@ def load_user(user_id):
 def unauthorized():
     return redirect(url_for('login'))
 
-def allowed_file(filename):
-    ALLOWED_EXTENSIONS = {'png', 'jpg', 'jpeg', 'gif', 'mp4', 'mov'}
-    return '.' in filename and filename.rsplit('.', 1)[1].lower() in ALLOWED_EXTENSIONS
-
-def moderate_text(text):
-    prohibited_words = ['mala_palabra1', 'mala_palabra2']
-    return any(word in text for word in prohibited_words)
-
 def init_db():
-    conn = sqlite3.connect('comments.db')
+    with app.app_context():
+        db.create_all()
+
+    db_path = os.path.join(os.path.dirname(__file__), 'back-end/comments.db')
+    conn = sqlite3.connect(db_path)
     cursor = conn.cursor()
     cursor.execute('''
         CREATE TABLE IF NOT EXISTS comments (
@@ -52,26 +51,20 @@ def init_db():
     conn.commit()
     conn.close()
 
-# Inicializa la base de datos al iniciar la aplicación
-with app.app_context():
-    db.create_all()
-init_db()
-
-@app.route('/')
-@login_required
-def index():
-    return render_template('index.html', username=current_user.username)
-
 @app.route('/register', methods=['GET', 'POST'])
 def register():
     if request.method == 'POST':
         username = request.form['username']
         password = request.form['password']
-        new_user = User(username=username, password=password)
-        db.session.add(new_user)
-        db.session.commit()
-        login_user(new_user)
-        return redirect(url_for('index'))
+        try:
+            new_user = User(username=username, password=password)
+            db.session.add(new_user)
+            db.session.commit()
+            login_user(new_user)
+            return redirect(url_for('index'))
+        except Exception as e:
+            app.logger.error(f"Error durante el registro: {e}")
+            flash('Hubo un problema al registrarte. Inténtalo de nuevo más tarde.', 'danger')
     return render_template('register.html')
 
 @app.route('/login', methods=['GET', 'POST'])
@@ -79,13 +72,22 @@ def login():
     if request.method == 'POST':
         username = request.form['username']
         password = request.form['password']
-        user = User.query.filter_by(username=username).first()
-        if user and user.password == password:
-            login_user(user)
-            return redirect(url_for('index'))
-        else:
-            flash('Inicio de sesión no exitoso. Por favor verifica tu nombre de usuario y contraseña.', 'danger')
+        try:
+            user = User.query.filter_by(username=username).first()
+            if user and user.password == password:
+                login_user(user)
+                return redirect(url_for('index'))
+            else:
+                flash('Inicio de sesión no exitoso. Por favor verifica tu nombre de usuario y contraseña.', 'danger')
+        except Exception as e:
+            app.logger.error(f"Error durante el inicio de sesión: {e}")
+            flash('Hubo un problema al iniciar sesión. Inténtalo de nuevo más tarde.', 'danger')
     return render_template('login.html')
+
+@app.route('/')
+@login_required
+def index():
+    return render_template('index.html', username=current_user.username)
 
 @app.route('/logout')
 @login_required
@@ -115,7 +117,8 @@ def add_comment():
     else:
         media_url = None
 
-    conn = sqlite3.connect('comments.db')
+    db_path = os.path.join(os.path.dirname(__file__), 'back-end/comments.db')
+    conn = sqlite3.connect(db_path)
     cursor = conn.cursor()
     cursor.execute('''
         INSERT INTO comments (id, username, text, media, likes, parent_id)
@@ -138,7 +141,8 @@ def add_comment():
 @app.route('/api/comments', methods=['GET'])
 @login_required
 def get_comments():
-    conn = sqlite3.connect('comments.db')
+    db_path = os.path.join(os.path.dirname(__file__), 'back-end/comments.db')
+    conn = sqlite3.connect(db_path)
     cursor = conn.cursor()
     cursor.execute('SELECT id, username, text, media, likes, parent_id FROM comments')
     rows = cursor.fetchall()
@@ -171,7 +175,8 @@ def get_comments():
 @app.route('/api/comments/<comment_id>/like', methods=['POST'])
 @login_required
 def like_comment(comment_id):
-    conn = sqlite3.connect('comments.db')
+    db_path = os.path.join(os.path.dirname(__file__), 'back-end/comments.db')
+    conn = sqlite3.connect(db_path)
     cursor = conn.cursor()
     cursor.execute('UPDATE comments SET likes = likes + 1 WHERE id = ?', (comment_id,))
     conn.commit()
@@ -183,16 +188,43 @@ def like_comment(comment_id):
 @app.route('/api/comments/<comment_id>', methods=['DELETE'])
 @login_required
 def delete_comment(comment_id):
-    conn = sqlite3.connect('comments.db')
+    db_path = os.path.join(os.path.dirname(__file__), 'back-end/comments.db')
+    conn = sqlite3.connect(db_path)
     cursor = conn.cursor()
-    cursor.execute('DELETE FROM comments WHERE id = ?', (comment_id,))
-    conn.commit()
-    conn.close()
-    return jsonify({'success': True})
+    cursor.execute('SELECT username FROM comments WHERE id = ?', (comment_id,))
+    row = cursor.fetchone()
+    if row and row[0] == current_user.username:
+        cursor.execute('DELETE FROM comments WHERE id = ?', (comment_id,))
+        conn.commit()
+        conn.close()
+        return jsonify({'success': True})
+    else:
+        conn.close()
+        return jsonify({'success': False, 'error': 'No tienes permiso para eliminar este comentario.'}), 403
+
+@app.route('/api/comments/<comment_id>', methods=['PUT'])
+@login_required
+def edit_comment(comment_id):
+    new_text = request.form['text']
+    db_path = os.path.join(os.path.dirname(__file__), 'back-end/comments.db')
+    conn = sqlite3.connect(db_path)
+    cursor = conn.cursor()
+    cursor.execute('SELECT username FROM comments WHERE id = ?', (comment_id,))
+    row = cursor.fetchone()
+    if row and row[0] == current_user.username:
+        cursor.execute('UPDATE comments SET text = ? WHERE id = ?', (new_text, comment_id))
+        conn.commit()
+        conn.close()
+        return jsonify({'success': True})
+    else:
+        conn.close()
+        return jsonify({'success': False, 'error': 'No tienes permiso para editar este comentario.'}), 403
 
 @app.route('/uploads/<filename>')
 def uploaded_file(filename):
     return send_from_directory(UPLOAD_FOLDER, filename)
 
 if __name__ == '__main__':
+    with app.app_context():
+        init_db()
     app.run(debug=True)
