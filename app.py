@@ -35,7 +35,8 @@ def init_db():
     with app.app_context():
         db.create_all()  # Crea todas las tablas definidas en los modelos de SQLAlchemy
 
-    db_path = os.path.join(os.path.dirname(__file__), 'comments.db')  # Cambia la ruta a donde esté tu base de datos
+    # Verifica y crea la tabla comments si no existe
+    db_path = os.path.join(os.path.dirname(__file__), 'comments.db')  # Ajuste de la ruta a donde está comments.db
     conn = sqlite3.connect(db_path)
     cursor = conn.cursor()
     cursor.execute('''
