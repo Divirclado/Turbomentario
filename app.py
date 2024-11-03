@@ -1,14 +1,16 @@
 from flask import Flask, render_template, redirect, url_for, request, flash, jsonify, send_from_directory
 from flask_sqlalchemy import SQLAlchemy
 from flask_login import LoginManager, UserMixin, login_user, login_required, logout_user, current_user
+from dotenv import load_dotenv
 import os
 import sqlite3
 import uuid
 
+load_dotenv()  # Cargar variables de entorno desde .env
+
 app = Flask(__name__, static_folder="back-end/static", template_folder="back-end/templates")
-app.config['SECRET_KEY'] = os.environ.get('SECRET_KEY', 'your_default_secret_key')
-db_path = os.path.join(os.path.dirname(__file__), 'back-end/users.db')
-app.config['SQLALCHEMY_DATABASE_URI'] = f'sqlite:///{db_path}'
+app.config['SECRET_KEY'] = os.getenv('SECRET_KEY')
+app.config['SQLALCHEMY_DATABASE_URI'] = f"sqlite:///{os.path.join(os.path.dirname(__file__), 'instance/users.db')}"
 UPLOAD_FOLDER = os.path.join(os.path.dirname(__file__), 'uploads')
 os.makedirs(UPLOAD_FOLDER, exist_ok=True)
 
@@ -31,7 +33,7 @@ def unauthorized():
 
 def init_db():
     with app.app_context():
-        db.create_all()  # Crea todas las tablas definidas
+        db.create_all()
 
     db_path = os.path.join(os.path.dirname(__file__), 'back-end/comments.db')
     conn = sqlite3.connect(db_path)
