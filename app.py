@@ -33,9 +33,9 @@ def unauthorized():
 
 def init_db():
     with app.app_context():
-        db.create_all()
+        db.create_all()  # Crea todas las tablas definidas en los modelos de SQLAlchemy
 
-    db_path = os.path.join(os.path.dirname(__file__), 'back-end/comments.db')
+    db_path = os.path.join(os.path.dirname(__file__), 'comments.db')  # Cambia la ruta a donde esté tu base de datos
     conn = sqlite3.connect(db_path)
     cursor = conn.cursor()
     cursor.execute('''
