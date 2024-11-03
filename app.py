@@ -35,8 +35,7 @@ def init_db():
     with app.app_context():
         db.create_all()  # Crea todas las tablas definidas en los modelos de SQLAlchemy
 
-    # Verifica y crea la tabla comments si no existe
-    db_path = os.path.join(os.path.dirname(__file__), 'comments.db')  # Ajuste de la ruta a donde está comments.db
+    db_path = os.path.join(os.path.dirname(__file__), 'comments.db')  # Asegúrate de que la ruta es correcta
     conn = sqlite3.connect(db_path)
     cursor = conn.cursor()
     cursor.execute('''
@@ -105,73 +104,83 @@ def add_comment():
     comment_id = str(uuid.uuid4())
     parent_id = request.form.get('parent_id')
 
-    if moderate_text(comment):
-        return jsonify({'success': False, 'error': 'Tu comentario contiene contenido inapropiado.'}), 400
+    try:
+        if moderate_text(comment):
+            return jsonify({'success': False, 'error': 'Tu comentario contiene contenido inapropiado.'}), 400
 
-    if media and not allowed_file(media.filename):
-        return jsonify({'success': False, 'error': 'Tipo de archivo no permitido.'}), 400
+        if media and not allowed_file(media.filename):
+            return jsonify({'success': False, 'error': 'Tipo de archivo no permitido.'}), 400
 
-    if media:
-        media_path = os.path.join(UPLOAD_FOLDER, media.filename)
-        media.save(media_path)
-        media_url = f'/uploads/{media.filename}'
-    else:
-        media_url = None
+        if media:
+            media_path = os.path.join(UPLOAD_FOLDER, media.filename)
+            media.save(media_path)
+            media_url = f'/uploads/{media.filename}'
+        else:
+            media_url = None
 
-    db_path = os.path.join(os.path.dirname(__file__), 'back-end/comments.db')
-    conn = sqlite3.connect(db_path)
-    cursor = conn.cursor()
-    cursor.execute('''
-        INSERT INTO comments (id, username, text, media, likes, parent_id)
-        VALUES (?, ?, ?, ?, ?, ?)
-    ''', (comment_id, username, comment, media_url, 0, parent_id))
-    conn.commit()
-    conn.close()
+        db_path = os.path.join(os.path.dirname(__file__), 'comments.db')  # Asegúrate de que la ruta es correcta
+        conn = sqlite3.connect(db_path)
+        cursor = conn.cursor()
+        cursor.execute('''
+            INSERT INTO comments (id, username, text, media, likes, parent_id)
+            VALUES (?, ?, ?, ?, ?, ?)
+        ''', (comment_id, username, comment, media_url, 0, parent_id))
+        conn.commit()
+        conn.close()
 
-    comment_data = {
-        'id': comment_id,
-        'username': username,
-        'text': comment,
-        'media': media_url,
-        'likes': 0,
-        'parent_id': parent_id,
-        'replies': []
-    }
-    return jsonify({'success': True, 'comment': comment_data})
+        comment_data = {
+            'id': comment_id,
+            'username': username,
+            'text': comment,
+            'media': media_url,
+            'likes': 0,
+            'parent_id': parent_id,
+            'replies': []
+        }
+        return jsonify({'success': True, 'comment': comment_data})
+
+    except Exception as e:
+        app.logger.error(f"Error al añadir comentario: {e}")
+        return jsonify({'success': False, 'error': 'Hubo un problema con el servidor. Por favor, inténtalo de nuevo más tarde.'}), 500
 
 @app.route('/api/comments', methods=['GET'])
 @login_required
 def get_comments():
-    db_path = os.path.join(os.path.dirname(__file__), 'back-end/comments.db')
-    conn = sqlite3.connect(db_path)
-    cursor = conn.cursor()
-    cursor.execute('SELECT id, username, text, media, likes, parent_id FROM comments')
-    rows = cursor.fetchall()
-    conn.close()
+    try:
+        db_path = os.path.join(os.path.dirname(__file__), 'comments.db')  # Asegúrate de que la ruta es correcta
+        conn = sqlite3.connect(db_path)
+        cursor = conn.cursor()
+        cursor.execute('SELECT id, username, text, media, likes, parent_id FROM comments')
+        rows = cursor.fetchall()
+        conn.close()
 
-    comments = []
-    comment_dict = {}
-    for row in rows:
-        comment = {
-            'id': row[0],
-            'username': row[1],
-            'text': row[2],
-            'media': row[3],
-            'likes': row[4],
-            'parent_id': row[5],
-            'replies': []
-        }
-        comment_dict[comment['id']] = comment
+        comments = []
+        comment_dict = {}
+        for row in rows:
+            comment = {
+                'id': row[0],
+                'username': row[1],
+                'text': row[2],
+                'media': row[3],
+                'likes': row[4],
+                'parent_id': row[5],
+                'replies': []
+            }
+            comment_dict[comment['id']] = comment
 
-    for comment in comment_dict.values():
-        if comment['parent_id']:
-            parent_comment = comment_dict.get(comment['parent_id'])
-            if parent_comment:
-                parent_comment['replies'].append(comment)
-        else:
-            comments.append(comment)
+        for comment in comment_dict.values():
+            if comment['parent_id']:
+                parent_comment = comment_dict.get(comment['parent_id'])
+                if parent_comment:
+                    parent_comment['replies'].append(comment)
+            else:
+                comments.append(comment)
 
-    return jsonify(comments)
+        return jsonify(comments)
+
+    except Exception as e:
+        app.logger.error(f"Error al obtener comentarios: {e}")
+        return jsonify({'success': False, 'error': 'Hubo un problema al obtener los comentarios. Por favor, inténtalo de nuevo más tarde.'}), 500
 
 @app.route('/api/comments/<comment_id>/like', methods=['POST'])
 @login_required
